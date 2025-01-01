@@ -1,10 +1,11 @@
 <?php
+date_default_timezone_set('Asia/Jakarta'); // Atur waktu zona asia
+
 // Konfigurasi database
 $servername = "localhost";
 $username = "root";
 $password = "";
 $dbname = "rfid_db";
-
 // Membuat koneksi
 $conn = new mysqli($servername, $username, $password, $dbname);
 
@@ -15,39 +16,68 @@ if ($conn->connect_error) {
 
 // Pesan untuk status
 $status_message = "";
-
 // Periksa apakah data UID dikirim
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['uid'])) {
     $uid = $_POST['uid'];
 
     // Validasi UID
     if (!empty($uid) && strlen($uid) <= 20) {
-        // Cek apakah UID ada di tabel rfid_users
-        $stmt = $conn->prepare("SELECT * FROM rfid_users WHERE uid = ?");
-        $stmt->bind_param("s", $uid);
-        $stmt->execute();
-        $result = $stmt->get_result();
+        // Cek apakah ada entri UID yang masih berstatus MASUK
+        $stmt_check = $conn->prepare("SELECT id, waktu_masuk FROM rfid_logs WHERE uid = ? AND status = 'MASUK'");
+        $stmt_check->bind_param("s", $uid);
+        $stmt_check->execute();
+        $result_check = $stmt_check->get_result();
 
-        if ($result->num_rows > 0) {
-            // Jika UID ditemukan, simpan log pemindaian ke tabel rfid_logs
-            $stmt_insert = $conn->prepare("INSERT INTO rfid_logs (uid) VALUES (?)");
-            $stmt_insert->bind_param("s", $uid);
-            if ($stmt_insert->execute()) {
-                $status_message = "Scan berhasil disimpan!";
+        if ($result_check->num_rows > 0) {
+            // Jika ada UID dengan status MASUK, ubah menjadi KELUAR
+            $row = $result_check->fetch_assoc();
+            $log_id = $row['id'];
+            $waktu_keluar = date("Y-m-d H:i:s");
+
+            $stmt_update = $conn->prepare("UPDATE rfid_logs SET status = 'KELUAR', waktu_keluar = ? WHERE id = ?");
+            $stmt_update->bind_param("si", $waktu_keluar, $log_id);
+
+            if ($stmt_update->execute()) {
+                echo "KELUAR"; // Berhasil mengubah status menjadi KELUAR
             } else {
-                $status_message = "Error: " . $stmt_insert->error;
+                echo "Error: " . $stmt_update->error; // Jika terjadi kesalahan
             }
-            $stmt_insert->close();
+
+            $stmt_update->close();
         } else {
-            // Jika UID tidak ditemukan, beri pesan bahwa UID tidak terdaftar
-            $status_message = "UID tidak terdaftar!";
+            // Cek apakah UID ada di tabel rfid_users
+            $stmt = $conn->prepare("SELECT * FROM rfid_users WHERE uid = ?");
+            $stmt->bind_param("s", $uid);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            if ($result->num_rows > 0) {
+                // Jika UID ditemukan, simpan log pemindaian ke tabel rfid_logs
+                $stmt_insert = $conn->prepare("INSERT INTO rfid_logs (uid, status, waktu_masuk) VALUES (?, 'MASUK', ?)");
+                $waktu_masuk = date("Y-m-d H:i:s");
+                $stmt_insert->bind_param("ss", $uid, $waktu_masuk);
+
+                if ($stmt_insert->execute()) {
+                    echo "MASUK"; // Berhasil menyimpan status MASUK
+                } else {
+                    echo "Error: " . $stmt_insert->error; // Jika terjadi kesalahan
+                }
+
+                $stmt_insert->close();
+            } else {
+                // Jika UID tidak ditemukan di tabel rfid_users
+                echo "UID tidak terdaftar!";
+            }
+
+            $stmt->close();
         }
 
-        $stmt->close();
+        $stmt_check->close();
     } else {
-        $status_message = "UID tidak valid!";
+        echo "UID tidak valid!";
     }
 }
+
 
 // Query untuk mendapatkan data scan dan identitas pengguna
 $sql = "SELECT rfid_logs.id, rfid_users.nama, rfid_users.nim, rfid_logs.scan_time
@@ -56,81 +86,6 @@ $sql = "SELECT rfid_logs.id, rfid_users.nama, rfid_users.nim, rfid_logs.scan_tim
         ORDER BY rfid_logs.id DESC";
 $result = $conn->query($sql);
 ?>
-
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Data RFID</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            text-align: center;
-        }
-        table {
-            width: 80%;
-            border-collapse: collapse;
-            margin: 20px auto;
-        }
-        table, th, td {
-            border: 1px solid black;
-        }
-        th, td {
-            padding: 10px;
-            text-align: center;
-        }
-        th {
-            background-color: #f4f4f4;
-        }
-        .status {
-            margin-bottom: 20px;
-            color: red;
-        }
-    </style>
-</head>
-<body>
-    <h2>Data RFID Tersimpan</h2>
-
-    <?php if ($status_message): ?>
-        <p class="status"><?php echo $status_message; ?></p>
-    <?php endif; ?>
-
-    <form method="POST" action="">
-        <input type="text" name="uid" placeholder="Masukkan UID RFID" required>
-        <button type="submit">Simpan UID</button>
-    </form>
-
-    <table>
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Nama</th>
-                <th>NIM</th>
-                <th>Timestamp</th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php if ($result->num_rows > 0): ?>
-                <?php while ($row = $result->fetch_assoc()): ?>
-                    <tr>
-                        <td><?php echo $row['id']; ?></td>
-                        <td><?php echo $row['nama'] ? $row['nama'] : "Tidak Terdaftar"; ?></td>
-                        <td><?php echo $row['nim'] ? $row['nim'] : "Tidak Terdaftar"; ?></td>
-                        <td><?php echo $row['scan_time']; ?></td>
-                    </tr>
-                <?php endwhile; ?>
-            <?php else: ?>
-                <tr>
-                    <td colspan="4">Tidak ada data</td>
-                </tr>
-            <?php endif; ?>
-        </tbody>
-    </table>
-</body>
-</html>
-
 <?php
 // Tutup koneksi
 $conn->close();

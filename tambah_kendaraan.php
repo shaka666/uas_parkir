@@ -9,12 +9,12 @@ $dbname = "rfid_db"; // rfid db adalah database yang ada di server. maka dari it
 $conn = new mysqli($servername, $username, $password, $dbname); // $Conn untuk mengubungkan SQL ke program agar bisa mengakses servername, username, passsword dan db.
 // Jika berhasil terhubung maka fungsi seperti select, update, insert dan delete dapat digunakan
 
-
+// $SERVER akan menerima data jika ada yang POST ke $SERVER tambah_kendaraan.php
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Ambil data dari form kendaraan
-    $nim = $_POST['nim'];
-    $plat = $_POST['plat'];
-    $vehicle = isset($_POST['vehicle']) ? implode(', ', $_POST['vehicle']) : null;
+    $nim = $_POST['nim']; // Mengambil NIM dari form yang ada di index.php yang nge POST ke file ini
+    $plat = $_POST['plat']; // Mengambil plat dari form yang ada di index.php yang nge POST ke file ini
+    $vehicle = $_POST['vehicle'] ? $_POST['vehicle'] : "MOTOR";
 
     // Waktu masuk: jika tidak ada input waktu masuk, gunakan waktu saat ini
     $waktu_masuk = !empty($_POST['waktu_masuk']) ? $_POST['waktu_masuk'] : date("Y-m-d H:i:s");
@@ -27,7 +27,18 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $stmt_insert->bind_param("sssss", $nim, $plat, $vehicle, $waktu_masuk, $waktu_keluar);
 
     if ($stmt_insert->execute()) {
-        $status_message = "Data kendaraan berhasil disimpan!";
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, "http://192.168.1.16/gerakkan_servo");
+        curl_setopt($ch, CURLOPT_POST, 1);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, "MASUK");
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        
+        $response = curl_exec($ch);
+        curl_close($ch);
+
+        if ($response === false) {
+            error_log("Error mengirim permintaan ke servo: " . curl_error($ch));
+        }
         header("Location: index.php");
         exit(); 
     } else {

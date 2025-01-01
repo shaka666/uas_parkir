@@ -10,8 +10,9 @@ $conn = new mysqli($servername, $username, $password, $dbname); // $Conn untuk m
 // Jika berhasil terhubung maka fungsi seperti select, update, insert dan delete dapat digunakan
 
 $status_message = "";
+
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $action = $_POST['action'];
+    $action  = $_POST['action'];
     $log_id = $_POST['log_id'];
 
     // Tentukan status baru
@@ -63,7 +64,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
             $status_message = "Status berhasil diubah menjadi $new_status! Tarif: Rp $tarif";
         }
+        echo $new_status;
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, "http://192.168.1.16/gerakkan_servo");
+        curl_setopt($ch, CURLOPT_POST, 1);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $new_status);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        
+        $response = curl_exec($ch);
+        curl_close($ch);
 
+        if ($response === false) {
+            error_log("Error mengirim permintaan ke servo: " . curl_error($ch));
+        }
         header("Location: index.php");
         exit();
     } else {
@@ -73,4 +86,4 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $stmt_update->close();
 }
 
-?>
+?>  

@@ -36,7 +36,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         
         // Verifikasi password
         if ($inputPassword === $user['Password']) {
-            $_SESSION['Username'] = $user['Username'];
+            $_SESSION['Username'] = $user['Username']; // Menyimpan username sebagai session dan data base
             header("Location: index.php");
             exit();
         } else {
